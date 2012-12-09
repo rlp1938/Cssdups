@@ -98,8 +98,9 @@ int main(int argc, char **argv)
 {
 	int opt;
 	struct filedata *sfd;
-	char *begin, *end, *cp, *dp, *glbegin, *glend, *lobegin, *loend;
-	int c1, c2, showempty;
+	char *begin, *end, *cp, *dp, *glbegin, *glend, *lobegin, *loend,
+			*cssfn;
+	int c1, c2, showempty, dupscount;
 	
 	showempty = 0;
 	while((opt = getopt(argc, argv, ":hx:g:e")) != -1) {
@@ -152,8 +153,8 @@ int main(int argc, char **argv)
 		fprintf(stderr, "No css file provided\n");
 		dohelp(1);
 	}
-
-	sfd = readfile(argv[optind], 1);
+	cssfn = argv[optind];
+	sfd = readfile(cssfn, 1);
 	begin = sfd->from;
 	end = sfd->to; 
 	free (sfd);
@@ -179,6 +180,7 @@ int main(int argc, char **argv)
 		cp++;
 	}
 	// go looking for class names
+	dupscount = 0;
 	c1 = 0;
 	cp = begin;
 	while(cp < end) {
@@ -208,6 +210,7 @@ int main(int argc, char **argv)
 							fprintf(stdout, 
 				"Duplicated style names: \'%s\' at lines %d and %d.\n",
 							buf, c1, c2);
+							dupscount++;
 						}
 					}
 					dp += strlen(dp) + 1;
@@ -215,6 +218,9 @@ int main(int argc, char **argv)
 			}
 		}
 		cp += strlen(cp) + 1;
+	}
+	if (dupscount == 0) {
+		fprintf(stdout, "%s has no duplicate syle names.\n", cssfn);
 	}
 	if (showempty) {
 		c1 = 0;
