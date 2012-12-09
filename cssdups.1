@@ -1,7 +1,8 @@
 .TH CSSDUPS 1 "2011-01-13" "rlp1938@gmail.com" "Linux User's Manual"
 
 .SH NAME
-cssdups \- a program to report on duplicated style names in a CSS file.
+cssdups \- a program to report on duplicated style names in a CSS file, 
+and optionally list empty lines by line number.
 
 .SH SYNOPSIS
 .B cssdups
@@ -38,6 +39,9 @@ Processing this option is the same as for option -x except that the file
 affected is /usr/local/share/cssdups/csdexcl and that file is installed
 at program installation time. You need root capability to use this 
 option.
+.IP \fB\-e\f 
+Lists empty lines by line number.
+
 .SH NOTES
 Be certain that anything you add to either csdexcl file is really
 harmless when duplicated in the CSS, because once inserted that object 

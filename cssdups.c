@@ -28,7 +28,9 @@
 #include <sys/stat.h>
 #include <errno.h> 
 #include <string.h>
-
+#include <libgen.h>
+ #include <ctype.h>
+ 
 void *memmem(const void *haystack, size_t haystacklen,
              const void *needle, size_t needlelen);
 struct filedata {
@@ -40,36 +42,99 @@ struct filedata {
 struct filedata *readfile(char *path, int fatal);
 void failure(const char *emsg);
 struct filedata *mkstructdata(char *from, char *to);
+void change_excludes(char *fn, char *excl, char *cmnt, int fatal);
+void initfile(char *fn);
+int absent_excludes(char *buf, char *glbegin, char *glend, 
+					char *lobegin, char *loend);
 
+char *nocomment="No user comment entered";
+char *localexcl = "~/.config/cssdups/csdexcl";
+char *globalexcl = "/usr/local/share/cssdups/csdexcl";
 
-char *helpmsg = "\n\tUsage: cssdups [option] cssfile\n"
-  "\tProgram to find duplicated class names in a css file\n"
-  "\n\tOptions:\n"
-  "\t-h outputs this help message.\n"
-  ;
-
+char *helpmsg = "NAME\n\tcssdups - a program to report on duplicated "
+"style names in a CSS file,\n\tand optionally list empty lines by"
+"line number."
+"\nSYNOPSIS\n\tcssdups [options] cssfile\n"
+"\nDESCRIPTION\n\tThe  program  examines  the  user named CSS file and"
+" reports duplicated\n\tstyle names. Some such styles may replicated "
+"harmlessly eg\n\t\'@font-family\' but other styles may harm the way "
+"the html using the\n\tCSS renders in the browser, eg div.big is one that"
+" may  be  problematic\n\tif duplicated. It is possible to block reporting"
+" of harmless\n\tduplications. This may be done globally in\n\t"
+"/usr/local/share/cssdups/csdexcl or per user in\n\t"
+"~/.config/cssdups/csdexcl. The first file is created when the program"
+"\n\tis installed and the latter only when the -x option is used.\n\t"
+"See OPTIONS below.\n"
+"\nOPTIONS\n\t-h\tprints helpfile.\n"
+"\n\t-x\ttext 'comment text'\n"
+"\tText is the string to ignore and comment text is a suitable comment"
+" to\n\tinsert into the exclusions file following the text to ignore.  It"
+" must\n\tbe present but may be empty ie ''. If empty a comment will be"
+" generated\n\t´No user comment entered´. The file altered is\n\t"
+"~/.config/cssdups/csdexcl. It is created on first use of this option"
+"\n\tand appended subsequently.\n"
+"\tFor this and the following option no CSS file need be provided,"
+" nor will\n\tit be processed if present.\n"
+"\n\t-g\ttext 'comment text'\n"
+"\tProcessing this option is the same as for option -x except that the"
+"\n\tfile affected is /usr/local/share/cssdups/csdexcl and that file is"
+"\n\tinstalled at program installation time. You need root capability to"
+"\n\tuse this option.\n"
+"\n\t-e\tLists empty lines by line number.\n"
+"NOTES\n\tBe certain that anything you add to either csdexcl file is"
+" really\n\tharmless when duplicated in the CSS, because once inserted"
+" that object\n\twill never again be reported as a duplicate. If a"
+" mistaken entry must\n\tbe removed you can do it in any text editor."
+" You will need to be root to\n\talter the global file,"
+" /usr/local/share/cssdups/csdexcl.\n"
+;
 void dohelp(int forced);
 
 char ebuf[FILENAME_MAX];
 char *memabslimit;	// set by readfile, it's 1 page more than the data
-int replaying;
+
 
 int main(int argc, char **argv)
 {
 	int opt;
 	struct filedata *sfd;
-	char *begin, *end, *cp, *dp;
-	int c1, c2;
-
-	while((opt = getopt(argc, argv, ":h")) != -1) {
+	char *begin, *end, *cp, *dp, *glbegin, *glend, *lobegin, *loend;
+	int c1, c2, showempty;
+	
+	showempty = 0;
+	while((opt = getopt(argc, argv, ":hx:g:e")) != -1) {
+		char *fn, *excl, *cmnt;
 		switch(opt){
 		case 'h':
 			dohelp(0);
 		break;
-		/*
-		case 'x': // fill in actual options
+		case 'e':
+			showempty = 1;
 		break;
-		* */
+		case 'x': // local config file
+			fn = localexcl;
+			excl = optarg;
+			if ((argv[3]) && (strlen(argv[3]) != 0)){
+				cmnt = strdup(argv[3]);
+			} else {
+				cmnt = nocomment;
+			}
+			change_excludes(fn, excl, cmnt, 0);
+		break;
+		case 'g': // global config file
+			if (geteuid() != 0) {
+				fputs("You must be root to use this option.\n", stderr);
+				dohelp(1);
+			}
+			fn = globalexcl;
+			excl = optarg;
+			if ((argv[3]) && (strlen(argv[3]) != 0)){
+				cmnt = strdup(argv[3]);
+			} else {
+				cmnt = nocomment;
+			}
+			change_excludes(fn, excl, cmnt, 1);
+		break;
 		case ':':
 			fprintf(stderr, "Option %c requires an argument\n",optopt);
 			dohelp(1);
@@ -92,8 +157,21 @@ int main(int argc, char **argv)
 	begin = sfd->from;
 	end = sfd->to; 
 	free (sfd);
+	sfd = readfile(globalexcl, 1);	// fatal if not existant
+	glbegin = sfd->from;
+	glend = sfd->to;
+	free(sfd);
+	sfd = readfile(localexcl, 0);	// not fatal if not existant
+	if (sfd) {
+		lobegin = sfd->from;
+		loend = sfd->to;
+		free(sfd);
+	} else {
+		lobegin = (char *)NULL;
+		loend = (char *)NULL;
+	}
 	
-	// turn the mess into C strings
+	// turn the CSS mess into C strings
 	cp = begin;
 	while(cp < end) {
 		cp = memchr(cp, '\n', end - cp);
@@ -105,6 +183,7 @@ int main(int argc, char **argv)
 	cp = begin;
 	while(cp < end) {
 		char *curly;
+		int result;
 		curly = strchr(cp, '{');
 		c1++;
 		if(curly) {
@@ -112,27 +191,41 @@ int main(int argc, char **argv)
 			strcpy(buf, cp);
 			curly = strchr(buf, '{');
 			*curly = '\0';
-			//fprintf(stdout, "Class \'%s\' at line %d\n", buf, c1);
-			c2 = c1;
-			dp = cp + strlen(cp) + 1;
-			while (dp < end) {
-				char buf2[128];
-				curly = strchr(dp, '{');
-				c2++;
-				if(curly) {
-					strcpy(buf2, dp);
-					curly = strchr(buf2, '{');
-					*curly = '\0';
-					if (strcmp(buf, buf2) == 0) {
-						fprintf(stdout, 
-			"There may be duplicates of \'%s\' at lines %d and %d.\n",
-						buf, c1, c2);
+			result = absent_excludes(buf, glbegin, glend, lobegin, 
+										loend);
+			if (result) {
+				c2 = c1;
+				dp = cp + strlen(cp) + 1;
+				while (dp < end) {
+					char buf2[128];
+					curly = strchr(dp, '{');
+					c2++;
+					if(curly) {
+						strcpy(buf2, dp);
+						curly = strchr(buf2, '{');
+						*curly = '\0';
+						if (strcmp(buf, buf2) == 0) {
+							fprintf(stdout, 
+				"Duplicated style names: \'%s\' at lines %d and %d.\n",
+							buf, c1, c2);
+						}
 					}
+					dp += strlen(dp) + 1;
 				}
-				dp += strlen(dp) + 1;
 			}
 		}
 		cp += strlen(cp) + 1;
+	}
+	if (showempty) {
+		c1 = 0;
+		cp = begin;
+		while(cp < end) {
+			c1++;
+			if (strlen(cp) == 0) {
+				fprintf(stdout, "Empty line at: %d\n", c1);
+			}
+			cp += strlen(cp) + 1;
+		}
 	}
 	return 0;
 }//main()
@@ -209,3 +302,102 @@ struct filedata *mkstructdata(char *from, char *to)
 	return dp;
 } // mkstructdata()
 
+void change_excludes(char *fn, char *excl, char *cmnt, int fatal)
+{
+	/* appends fn with the excl and comment text on one line 
+	 * If the file fn does not exist it creates it unless fatal 
+	 * is non-zero. In the latter case we abort with error message.*/
+	 FILE *fp;
+	 struct stat sb;
+	 char buf[255];
+	 if (stat(fn, &sb) < 0) {
+		 if(fatal) {
+			 perror(fn);
+			 exit(EXIT_FAILURE);
+		 } else { // must create this file
+			initfile(fn);
+		 }
+	 }
+	 // now add the text
+	 fp = fopen(fn, "a");
+	 if(!(fp)) {
+		 perror(fn);
+		 exit(EXIT_FAILURE);
+	 }
+	 // add our text
+	 strcpy(buf, excl);
+	 strcat(buf, " #");
+	 strcat(buf, cmnt);
+	 strcat(buf, "\n");
+	 fputs(buf, fp);
+	 if (fclose(fp) < 0) {
+		 perror(fn);
+		 exit(EXIT_FAILURE);
+	 }
+	 // I don't want to return and have the user required to provide
+	 // a CSS file for processing.
+	 exit(EXIT_SUCCESS);
+	 
+} // change_excludes()
+
+void initfile(char *fn)
+{
+	/* creates and initialises a config file suitable only for cssdups
+	 * */
+	struct stat sb;
+	FILE *fp;
+	char buf[255];
+	char *dir = basename(fn);
+	// almost certain that the dir won't exist either.
+	if (stat(dir, &sb) < 0) {
+		strcpy(buf, "mkdir ");
+		strcat(buf, dir);
+		system(buf);
+		sync();
+	}
+	fp = fopen(fn, "w");
+	if(!(fp)) {
+		perror(fn);
+		exit(EXIT_FAILURE);
+	}
+	fputs("# User level excludes file for cssdups\n", fp);
+	fputs("# Actual data MUST begin on a new line at line 2 or later"
+			" in this file.\n", fp);
+	if (fclose(fp) < 0) {
+		perror(fn);
+		exit(EXIT_FAILURE);
+	}
+	sync();	// redundant maybe but I want this file present for an
+			// open() to follow straight away.
+} // initfile()
+
+int absent_excludes(char *buf, char *glbegin, char *glend, 
+					char *lobegin, char *loend)
+{
+	/* searches for buf firstly thru glbegin to glend
+	 * if found returns 0. If not it searches thru lobegin to loend,
+	 * provided that lobegin is not NULL.
+	 * The default return is 1,  == not in excludes.
+	 * If found in either list, returns 0, not absent from excludes/
+	*/
+	char *cp;
+	char buf1[255];
+	char buf2[255];
+
+	strcpy(buf2, buf);	// trim trailing white space
+	cp = buf2 + strlen(buf2) - 1;
+	while(isspace(*cp)) {
+		*cp = '\0';
+		cp--;
+	}
+	strcpy(buf1, "\n");	// search target MUST be at the beginning of the
+						// line.
+	strcat(buf1, buf2);
+	cp = memmem(glbegin, glend-glbegin, buf1, strlen(buf1));
+	if (cp) return 0;
+	if (lobegin) {
+		cp = memmem(lobegin, loend-lobegin, buf1, strlen(buf1));
+		if (cp) return 0;
+	}
+	return 1;	// it's absent from both lists
+} // absent_excludes()
