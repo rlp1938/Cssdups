@@ -4,11 +4,12 @@ LDFLAGS=
 SOURCES=cssdups.c
 OBJECTS=$(SOURCES:.c=.o)
 EXECUTABLE=cssdups
+CONFIG=csdexcl
 
 .PHONY: clean install remove
 
 all: $(SOURCES) $(EXECUTABLE)
-	
+
 $(EXECUTABLE): $(OBJECTS)
 	$(CC) $(LDFLAGS) $(OBJECTS) -o $@
 
@@ -19,13 +20,8 @@ clean:
 	rm -rf *o cssdups
 	
 install:
-	cp cssdups /usr/local/bin/
+	./install.sh
 
 remove:
-	if [-f /usr/local/bin/cssdups ];then 
-		rm /usr/local/bin/cssdups
-	fi
-	if [-f /usr/local/share/cssdups/csdexcl ];then 
-		rm /usr/local/bin/cssdups/csdexcl
-	fi
-	
+	./remove.sh
+

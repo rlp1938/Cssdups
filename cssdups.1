@@ -1,0 +1,46 @@
+.TH CSSDUPS 1 "2011-01-13" "rlp1938@gmail.com" "Linux User's Manual"
+
+.SH NAME
+cssdups \- a program to report on duplicated style names in a CSS file.
+
+.SH SYNOPSIS
+.B cssdups
+.RI [ options ] " cssfile"
+.br
+
+.SH DESCRIPTION
+The program examines the user named CSS file and reports duplicated
+style names. Some such styles may replicated harmlessly eg '@font-family'
+but other styles may harm the way the html using the CSS renders in the 
+browser, eg div.big is one that may be problematic if duplicated. It is
+possible to block reporting of harmless duplications. This may be done
+globally in /usr/local/share/cssdups/csdexcl or individually in
+~/.config/cssdups/csdexcl. The first file is created when the program is
+installed and the latter only when the -x option is used. See below.
+
+.SH OPTIONS
+.IP \fB\-h\f 
+prints helpfile.
+.IP \fB\-x\f 
+text 'comment text'
+.P
+Text is the string to ignore and comment text is a suitable comment to
+insert into the exclusions file following the text to ignore. It must be
+present but may be empty ie ''. If empty a comment will be generated 
+\'No user comment entered\'. The file altered is ~/.config/cssdups/csdexcl.
+It is created on first use of this option and appended susequently.
+For this and the following option no CSS file need be provided, nor will
+it be processed if present. 
+.IP \fB\-g\fg 
+text 'comment text'
+.P
+Processing this option is the same as for option -x except that the file
+affected is /usr/local/share/cssdups/csdexcl and that file is installed
+at program installation time. You need root capability to use this 
+option.
+.SH NOTES
+Be certain that anything you add to either csdexcl file is really
+harmless when duplicated in the CSS, because once inserted that object 
+will never again be reported as a duplicate. If a mistaken entry must be 
+removed you can do it in any text editor. You will need to be root to
+alter the global file, /usr/local/share/cssdups/csdexcl.

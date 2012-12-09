@@ -1,0 +1,3 @@
+# Global excludes file for cssdups 
+# Actual data MUST begin on a new line at line 2 or later in this file.
+@font-face	# It's ok to have many of these in your css.

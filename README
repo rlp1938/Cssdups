@@ -1,0 +1,40 @@
+This program cssdups has been made to report duplicated style names
+in a css file. Now some style names may be replicated harmlessly, eg
+@font-name but others such as div.big will cause faults in the html
+page display if there is more than one definition.
+
+It is possible inhibit reporting harmless replications, see the man page
+or 'cssdups -h' for the details.
+
+This program has been developed on and for Linux.
+To build the program just cd into the directory Cssdups and type:
+make
+
+Note that there is no configure script provided so the step:
+./configure
+is neither necessary nor possible.
+
+After the build you can install with, as root, eg su or prefix the 
+command with sudo depending on your system:
+make install
+
+To finish:
+make clean
+That gets rid of the work files.
+
+Finally, if you no longer need the program you, as root, remove
+it and it's configuration files with:
+make remove
+
+You must be in the directory where you built the program for the above
+to work.
+
+
+NB Modern Linux distributions do not have the tools necessary to build 
+programs when newly installed. You need to install these tools.
+
+For Debian based systems such as Ubuntu and Mint do this:
+sudo apt-get install build-essential
+
+For Fedora:
+yum groupinstall "Development Tools" "Development Libraries"
