@@ -46,17 +46,18 @@ void change_excludes(char *fn, char *excl, char *cmnt, int fatal);
 void initfile(char *fn);
 int absent_excludes(char *buf, char *glbegin, char *glend, 
 					char *lobegin, char *loend);
+struct filedata *findhtmlcss(char *begin, char *end);
 
 char *nocomment="No user comment entered";
 char *localexcl = "~/.config/cssdups/csdexcl";
 char *globalexcl = "/usr/local/share/cssdups/csdexcl";
 
 char *helpmsg = "NAME\n\tcssdups - a program to report on duplicated "
-"style names in a CSS file,\n\tand optionally list empty lines by"
-"line number."
+"style names in a CSS or HTML\n\tfile, and optionally list empty lines"
+" by line number."
 "\nSYNOPSIS\n\tcssdups [options] cssfile\n"
-"\nDESCRIPTION\n\tThe  program  examines  the  user named CSS file and"
-" reports duplicated\n\tstyle names. Some such styles may replicated "
+"\nDESCRIPTION\n\tThe program examines the user named CSS or HTML"
+"file and reports\n\tduplicated style names. Some such styles may replicated "
 "harmlessly eg\n\t\'@font-family\' but other styles may harm the way "
 "the html using the\n\tCSS renders in the browser, eg div.big is one that"
 " may  be  problematic\n\tif duplicated. It is possible to block reporting"
@@ -87,6 +88,9 @@ char *helpmsg = "NAME\n\tcssdups - a program to report on duplicated "
 " mistaken entry must\n\tbe removed you can do it in any text editor."
 " You will need to be root to\n\talter the global file,"
 " /usr/local/share/cssdups/csdexcl.\n"
+"\n\tNote  that for HTML files the duplicate search is confined to\n"
+"\tthe style tags contained within the head tags. Individual styles\n"
+"\tattached to html elements are not examined.\n"
 ;
 void dohelp(int forced);
 
@@ -178,6 +182,20 @@ int main(int argc, char **argv)
 		cp = memchr(cp, '\n', end - cp);
 		if(cp) *cp = '\0';
 		cp++;
+	}
+	
+	// see if I am looking at a html file
+	cp = begin;
+	cp = memmem(cp, 1024, "<!DOCTYPE html", strlen("<!DOCTYPE html"));
+	if(cp) {
+		sfd = findhtmlcss(begin, end);
+		if (!(sfd)) {
+			fprintf(stderr, "No internal css found in %s\n", cssfn);
+			exit(EXIT_FAILURE);
+		}
+		begin = sfd->from;
+		end = sfd->to;
+		free(sfd);
 	}
 	// go looking for class names
 	dupscount = 0;
@@ -407,3 +425,34 @@ int absent_excludes(char *buf, char *glbegin, char *glend,
 	}
 	return 1;	// it's absent from both lists
 } // absent_excludes()
+
+struct filedata *findhtmlcss(char *begin, char *end)
+{
+	/* searches a html file for the area beginning with '<style and
+	 * ending with </style>. Returns NULL if not found.
+	 * */
+	 
+	char *from, *to;
+	 
+	// limit my search to what is between <head> ... </head>
+	from = memmem(begin, end - begin, "<head", strlen("<head"));
+	if (!(from)) return (struct filedata *)from;	
+	// might not have <head> ... </head>
+	to = memmem(from, end - from, "</head>", strlen("</head>"));
+	if (!(to)) {
+		fputs("Opening '<head>' tag found without closing '</head>'.\n"
+				, stderr);
+		exit(EXIT_FAILURE);
+	}
+	// now find the styles if any
+	from = memmem(from, to - from, "<style", strlen("<style"));
+	if (!(from)) return (struct filedata *)from;	
+	// might not have <style> ... </style>
+	to = memmem(from, to - from, "</style>", strlen("</style>"));
+	if (!(to)) {
+		fputs("Opening '<style>' tag found without closing"
+				" '</style>'.\n", stderr);
+		exit(EXIT_FAILURE);
+	}
+	return mkstructdata(from, to);
+} // findhtmlcss()

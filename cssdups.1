@@ -1,8 +1,8 @@
 .TH CSSDUPS 1 "2011-01-13" "rlp1938@gmail.com" "Linux User's Manual"
 
 .SH NAME
-cssdups \- a program to report on duplicated style names in a CSS file, 
-and optionally list empty lines by line number.
+cssdups \- a program to report on duplicated style names in a CSS or 
+HTML file, and optionally list empty lines by line number.
 
 .SH SYNOPSIS
 .B cssdups
@@ -10,14 +10,15 @@ and optionally list empty lines by line number.
 .br
 
 .SH DESCRIPTION
-The program examines the user named CSS file and reports duplicated
-style names. Some such styles may replicated harmlessly eg '@font-family'
-but other styles may harm the way the html using the CSS renders in the 
-browser, eg div.big is one that may be problematic if duplicated. It is
-possible to block reporting of harmless duplications. This may be done
-globally in /usr/local/share/cssdups/csdexcl or individually in
-~/.config/cssdups/csdexcl. The first file is created when the program is
-installed and the latter only when the -x option is used. See below.
+The program examines the user named CSS or HTML file and reports 
+duplicated style names. Some such styles may replicated harmlessly 
+eg '@font-family' but other styles may harm the way the html using the 
+CSS renders in the browser, eg div.big is one that may be problematic if
+duplicated. It is possible to block reporting of harmless duplications.
+This may be done globally in /usr/local/share/cssdups/csdexcl or 
+individually in ~/.config/cssdups/csdexcl. The first file is created 
+when the program is installed and the latter only when the -x option is
+used. See below.
 
 .SH OPTIONS
 .IP \fB\-h\f 
@@ -48,3 +49,7 @@ harmless when duplicated in the CSS, because once inserted that object
 will never again be reported as a duplicate. If a mistaken entry must be 
 removed you can do it in any text editor. You will need to be root to
 alter the global file, /usr/local/share/cssdups/csdexcl.
+.P
+Note that for HTML files the duplicate search is confined to the style
+tags contained within the head tags. Individual styles attached to html 
+elements are not examined.

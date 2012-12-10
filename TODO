@@ -1,3 +1,6 @@
 TODO
 1. Count duplicates found and issue a null report if count is 0.
+	done 20 Dec 2012
 2. Add support for checking internal CSS in HTML files.
+	done 20 Dec 2012
+
