@@ -26,38 +26,33 @@
 #include <getopt.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <errno.h> 
+#include <errno.h>
 #include <string.h>
 #include <libgen.h>
- #include <ctype.h>
- 
-void *memmem(const void *haystack, size_t haystacklen,
-             const void *needle, size_t needlelen);
-struct filedata {
-    char *from; // start of file content
-    char *to;   // last byte of data + 1
-};
+#include <ctype.h>
+
+#include "fileops.h"
+#include "firstrun.h"
 
 
-struct filedata *readfile(char *path, int fatal);
-void failure(const char *emsg);
-struct filedata *mkstructdata(char *from, char *to);
-void change_excludes(char *fn, char *excl, char *cmnt, int fatal);
-void initfile(char *fn);
-int absent_excludes(char *buf, char *glbegin, char *glend, 
+static void failure(const char *emsg);
+static void change_excludes(char *fn, char *excl, char *cmnt, int fatal);
+static int absent_excludes(char *buf, char *glbegin, char *glend,
 					char *lobegin, char *loend);
-struct filedata *findhtmlcss(char *begin, char *end);
+static fdata findhtmlcss(char *begin, char *end);
 
 char *nocomment="No user comment entered";
 char *localexcl = "~/.config/cssdups/csdexcl";
 char *globalexcl = "/usr/local/share/cssdups/csdexcl";
 
-char *helpmsg = "NAME\n\tcssdups - a program to report on duplicated "
+static char *helpmsg =
+"NAME\n\tcssdups - a program to report on duplicated "
 "style names in a CSS or HTML\n\tfile, and optionally list empty lines"
 " by line number."
 "\nSYNOPSIS\n\tcssdups [options] cssfile\n"
 "\nDESCRIPTION\n\tThe program examines the user named CSS or HTML"
-"file and reports\n\tduplicated style names. Some such styles may replicated "
+"file and reports\n\tduplicated style names. Some such styles may "
+"be replicated "
 "harmlessly eg\n\t\'@font-family\' but other styles may harm the way "
 "the html using the\n\tCSS renders in the browser, eg div.big is one that"
 " may  be  problematic\n\tif duplicated. It is possible to block reporting"
@@ -105,7 +100,7 @@ int main(int argc, char **argv)
 	char *begin, *end, *cp, *dp, *glbegin, *glend, *lobegin, *loend,
 			*cssfn;
 	int c1, c2, showempty, dupscount;
-	
+
 	showempty = 0;
 	while((opt = getopt(argc, argv, ":hx:g:e")) != -1) {
 		char *fn, *excl, *cmnt;
@@ -160,7 +155,7 @@ int main(int argc, char **argv)
 	cssfn = argv[optind];
 	sfd = readfile(cssfn, 1);
 	begin = sfd->from;
-	end = sfd->to; 
+	end = sfd->to;
 	free (sfd);
 	sfd = readfile(globalexcl, 1);	// fatal if not existant
 	glbegin = sfd->from;
@@ -175,7 +170,7 @@ int main(int argc, char **argv)
 		lobegin = (char *)NULL;
 		loend = (char *)NULL;
 	}
-	
+
 	// turn the CSS mess into C strings
 	cp = begin;
 	while(cp < end) {
@@ -183,7 +178,7 @@ int main(int argc, char **argv)
 		if(cp) *cp = '\0';
 		cp++;
 	}
-	
+
 	// see if I am looking at a html file
 	cp = begin;
 	cp = memmem(cp, 1024, "<!DOCTYPE html", strlen("<!DOCTYPE html"));
@@ -211,7 +206,7 @@ int main(int argc, char **argv)
 			strcpy(buf, cp);
 			curly = strchr(buf, '{');
 			*curly = '\0';
-			result = absent_excludes(buf, glbegin, glend, lobegin, 
+			result = absent_excludes(buf, glbegin, glend, lobegin,
 										loend);
 			if (result) {
 				c2 = c1;
@@ -225,7 +220,7 @@ int main(int argc, char **argv)
 						curly = strchr(buf2, '{');
 						*curly = '\0';
 						if (strcmp(buf, buf2) == 0) {
-							fprintf(stdout, 
+							fprintf(stdout,
 				"Duplicated style names: \'%s\' at lines %d and %d.\n",
 							buf, c1, c2);
 							dupscount++;
@@ -313,23 +308,10 @@ void failure(const char *emsg) {
 	exit(EXIT_FAILURE);
 } // failure()
 
-struct filedata *mkstructdata(char *from, char *to)
-{
-	// create and initialise this struct in 1 place only
-	struct filedata *dp = malloc(sizeof(struct filedata));
-	if (!(dp)){
-		perror("malloc failure making 'struct filedata'");
-		exit(EXIT_FAILURE);
-	}
-	dp->from = from;
-	dp->to = to;
-	return dp;
-} // mkstructdata()
-
 void change_excludes(char *fn, char *excl, char *cmnt, int fatal)
 {
-	/* appends fn with the excl and comment text on one line 
-	 * If the file fn does not exist it creates it unless fatal 
+	/* appends fn with the excl and comment text on one line
+	 * If the file fn does not exist it creates it unless fatal
 	 * is non-zero. In the latter case we abort with error message.*/
 	 FILE *fp;
 	 struct stat sb;
@@ -361,41 +343,10 @@ void change_excludes(char *fn, char *excl, char *cmnt, int fatal)
 	 // I don't want to return and have the user required to provide
 	 // a CSS file for processing.
 	 exit(EXIT_SUCCESS);
-	 
+
 } // change_excludes()
 
-void initfile(char *fn)
-{
-	/* creates and initialises a config file suitable only for cssdups
-	 * */
-	struct stat sb;
-	FILE *fp;
-	char buf[255];
-	char *dir = basename(fn);
-	// almost certain that the dir won't exist either.
-	if (stat(dir, &sb) < 0) {
-		strcpy(buf, "mkdir ");
-		strcat(buf, dir);
-		system(buf);
-		sync();
-	}
-	fp = fopen(fn, "w");
-	if(!(fp)) {
-		perror(fn);
-		exit(EXIT_FAILURE);
-	}
-	fputs("# User level excludes file for cssdups\n", fp);
-	fputs("# Actual data MUST begin on a new line at line 2 or later"
-			" in this file.\n", fp);
-	if (fclose(fp) < 0) {
-		perror(fn);
-		exit(EXIT_FAILURE);
-	}
-	sync();	// redundant maybe but I want this file present for an
-			// open() to follow straight away.
-} // initfile()
-
-int absent_excludes(char *buf, char *glbegin, char *glend, 
+int absent_excludes(char *buf, char *glbegin, char *glend,
 					char *lobegin, char *loend)
 {
 	/* searches for buf firstly thru glbegin to glend
@@ -426,17 +377,18 @@ int absent_excludes(char *buf, char *glbegin, char *glend,
 	return 1;	// it's absent from both lists
 } // absent_excludes()
 
-struct filedata *findhtmlcss(char *begin, char *end)
+fdata findhtmlcss(char *begin, char *end)
 {
 	/* searches a html file for the area beginning with '<style and
 	 * ending with </style>. Returns NULL if not found.
 	 * */
-	 
+
 	char *from, *to;
-	 
+	fdata retdat = { 0 };	// init NULL
+
 	// limit my search to what is between <head> ... </head>
 	from = memmem(begin, end - begin, "<head", strlen("<head"));
-	if (!(from)) return (struct filedata *)from;	
+	if (!(from)) return retdat;
 	// might not have <head> ... </head>
 	to = memmem(from, end - from, "</head>", strlen("</head>"));
 	if (!(to)) {
@@ -446,7 +398,7 @@ struct filedata *findhtmlcss(char *begin, char *end)
 	}
 	// now find the styles if any
 	from = memmem(from, to - from, "<style", strlen("<style"));
-	if (!(from)) return (struct filedata *)from;	
+	if (!(from)) return (struct filedata *)from;
 	// might not have <style> ... </style>
 	to = memmem(from, to - from, "</style>", strlen("</style>"));
 	if (!(to)) {
@@ -454,5 +406,7 @@ struct filedata *findhtmlcss(char *begin, char *end)
 				" '</style>'.\n", stderr);
 		exit(EXIT_FAILURE);
 	}
-	return mkstructdata(from, to);
+	retdat.from = from;
+	retdat.to = to;
+	return retdat;
 } // findhtmlcss()
