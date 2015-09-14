@@ -127,16 +127,7 @@ int main(int argc, char **argv)
 	}
 
 	// turn the CSS mess into C strings
-	cp = begin;
-	while(1) {
-		cp = memchr(cp, '\n', end - cp);
-		if (cp) {
-			*cp = '\0';
-		} else {
-			break;
-		}
-		cp++;
-	}
+	sfd = mem2str(sfd.from, sfd.to);
 
 	// see if I am looking at a html file
 	cp = begin;
